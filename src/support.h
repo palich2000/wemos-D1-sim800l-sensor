@@ -3,6 +3,7 @@
 
 #include <Syslog.h>
 extern Syslog * syslog;
+
 #define SYSLOG(ident, format, args...) \
 { \
     if (syslog) { \

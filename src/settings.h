@@ -41,5 +41,8 @@ struct TIME_T {
     unsigned long valid;
 } RtcTime;
 
+extern int uptime;
+
+ADC_MODE(ADC_VCC);
 
 #endif

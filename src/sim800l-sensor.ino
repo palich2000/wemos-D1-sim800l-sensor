@@ -20,7 +20,9 @@ void setup_web_server() {
     _web_server.on("/gprs", HTTP_POST, [&]() {
         digitalWrite(BUILTIN_LED, HIGH);
         SYSLOG(LOG_INFO, "/gprs %s", _web_server.arg("data").c_str());
-        post_data_via_gsm_http("sip.trophy.com.ua", 3000, "/mqtt", _web_server.arg("data").c_str());
+        String result;
+        post_data_via_gsm_http("sip.trophy.com.ua", 3000, "/mqtt", _web_server.arg("data"), result);
+        _web_server.send (200, "text/json", result);
         digitalWrite(BUILTIN_LED, LOW);
     });
 
@@ -64,6 +66,8 @@ void setup_web_server() {
 
 char my_hostname[33] = {};
 
+#define PIR_IN D0
+
 void setup() {
     pinMode(BUILTIN_LED, OUTPUT);
     digitalWrite(BUILTIN_LED, LOW);
@@ -90,13 +94,9 @@ void setup() {
     RtcInit();
 
     SyslogInit();
-
-    SYSLOG(LOG_INFO, "Begin setup");
-
-
-    SYSLOG(LOG_INFO, "Ready");
+    delay(100);
+    SYSLOG(LOG_INFO, "=======Begin setup======");
     SYSLOG(LOG_INFO, "IP address: %s", WiFi.localIP().toString().c_str());
-    SYSLOG(LOG_INFO, "Check ID in: https://www.wemos.cc/verify_products");
     SYSLOG(LOG_INFO, "Chip ID = %08X", ESP.getChipId());
     SYSLOG(LOG_INFO, "Buil timestamp: %s", __TIMESTAMP__);
     SYSLOG(LOG_INFO, "Sketch size: %d", ESP.getSketchSize());
@@ -109,11 +109,11 @@ void setup() {
 
     ESPhttpUpdate.rebootOnUpdate(false);
     setup_web_server();
-
     gsm_init();
-
-    SYSLOG(LOG_INFO, "End setup");
+    SYSLOG(LOG_INFO, "======End setup======");
     digitalWrite(BUILTIN_LED, HIGH);
+
+    pinMode(PIR_IN, INPUT);
 }
 
 Ticker tickerOSWatch;
@@ -145,9 +145,55 @@ void OsWatchLoop() {
 }
 
 
+#define motionDetected 1
+#define motionNotDetected 0
+
+void pirLoop() {
+    static unsigned long lastStateChanged = 0;
+    static byte pirLastState = motionNotDetected;
+
+    int pirState = digitalRead(PIR_IN);
+    if (pirState != pirLastState) {
+        unsigned long now = millis();
+        if ((pirState == motionDetected) || ((pirState == motionNotDetected) && (now - lastStateChanged > 30000))) {
+            if (pirState != motionDetected) {
+                SYSLOG(LOG_INFO, "Nobody here.");
+            } else {
+                SYSLOG(LOG_INFO, "There's someone here.");
+            }
+            pirLastState = pirState;
+            lastStateChanged = now;
+        }
+    } else {
+        if (pirLastState == motionDetected) {
+            lastStateChanged = millis();
+        }
+    }
+}
+
+void send_state() {
+    static unsigned long lastStateSended = 0;
+    unsigned long now = millis();
+    if (abs(now - lastStateSended) > 30 * 1000) {
+//    tele/wemos1/STATE = {"Time":"2018-02-23T13:10:37","Uptime":75,"Vcc":2.980,"Wifi":{"AP":1,"SSId":"yt201","RSSI":100,"APMac":"1C:AF:F7:2A:22:9E"}}
+        lastStateSended = now;
+        char buffer[255] = {};
+        char stemp1[16];
+        dtostrfd((double)ESP.getVcc() / 1000, 3, stemp1);
+        snprintf_P(buffer, sizeof(buffer) - 1, PSTR("{\"Time\":\"%s\",\"Uptime\":%d,\"Vcc\":%s%s}"), GetDateAndTime().c_str(), uptime, stemp1, gsmStatusJson().c_str());
+        SYSLOG(LOG_INFO, buffer);
+    }
+}
+
+void send_sensors() {
+}
+
+
 void loop() {
     OsWatchLoop();
     _web_server.handleClient();
     gsmLoop();
+    pirLoop();
+    send_state();
     yield();
 }
