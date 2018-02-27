@@ -147,10 +147,14 @@ void OsWatchLoop() {
 
 #define motionDetected 1
 #define motionNotDetected 0
+static byte pirLastState = motionNotDetected;
+
+byte getPirState() {
+    return pirLastState;
+}
 
 void pirLoop() {
     static unsigned long lastStateChanged = 0;
-    static byte pirLastState = motionNotDetected;
 
     int pirState = digitalRead(PIR_IN);
     if (pirState != pirLastState) {
@@ -174,26 +178,44 @@ void pirLoop() {
 void send_state() {
     static unsigned long lastStateSended = 0;
     unsigned long now = millis();
-    if (abs(now - lastStateSended) > 30 * 1000) {
+    if (((!lastStateSended) || (abs(now - lastStateSended > 300 * 1000))) && (is_gsm_ready())) {
 //    tele/wemos1/STATE = {"Time":"2018-02-23T13:10:37","Uptime":75,"Vcc":2.980,"Wifi":{"AP":1,"SSId":"yt201","RSSI":100,"APMac":"1C:AF:F7:2A:22:9E"}}
         lastStateSended = now;
         char buffer[255] = {};
         char stemp1[16];
         dtostrfd((double)ESP.getVcc() / 1000, 3, stemp1);
         snprintf_P(buffer, sizeof(buffer) - 1, PSTR("{\"Time\":\"%s\",\"Uptime\":%d,\"Vcc\":%s%s}"), GetDateAndTime().c_str(), uptime, stemp1, gsmStatusJson().c_str());
-        SYSLOG(LOG_INFO, buffer);
+        String data("data=");
+        data +=  String(buffer) + String("&topic=tele/") + my_hostname + String("/STATE");
+        String resp;
+        post_data_via_gsm_http("sip.trophy.com.ua", 3000, "/mqtt", data, resp);
+        SYSLOG(LOG_INFO, "%s", resp.c_str());
     }
 }
 
 void send_sensors() {
+    static unsigned long lastSensorSended = 0;
+    unsigned long now = millis();
+    if (((!lastSensorSended) || abs(now - lastSensorSended > 300 * 1000)) && (is_gsm_ready())) {
+//tele/wemos1/SENSOR = {"Time":"2018-02-26T17:22:30","PIR":{"Motion":0}}
+        lastSensorSended = now;
+        char buffer[255] = {};
+        snprintf_P(buffer, sizeof(buffer) - 1, PSTR("{\"Time\":\"%s\",\"PIR\":{\"Motion\":%d}}"), GetDateAndTime().c_str(), getPirState());
+        String data("data=");
+        data +=  String(buffer) + String("&topic=tele/") + my_hostname + String("/SENSOR");
+        String resp;
+        post_data_via_gsm_http("sip.trophy.com.ua", 3000, "/mqtt", data, resp);
+        SYSLOG(LOG_INFO, "%s", resp.c_str());
+    }
 }
 
 
 void loop() {
+    pirLoop();
     OsWatchLoop();
     _web_server.handleClient();
     gsmLoop();
-    pirLoop();
     send_state();
+    send_sensors();
     yield();
 }

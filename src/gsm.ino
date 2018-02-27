@@ -57,7 +57,7 @@ int gsm_sync_time() {
         return(GSM_NOT_INITIALIZED);
     }
 
-    SYSLOG(LOG_INFO, "%s", __FUNCTION__);
+    //SYSLOG(LOG_INFO, "%s", __FUNCTION__);
     if (!modem.waitForNetwork()) {
         SYSLOG(LOG_ERR, "waitForNetwork fail.");
         return (GSM_NET_NOT_READY);
@@ -111,7 +111,7 @@ int gsm_sync_time() {
     tmpTime.second = second;
     SetUTCTime(MakeTime(tmpTime));
 
-    SYSLOG(LOG_INFO, "Sync date and time: %s", GetUtcDateAndTime().c_str());
+    //SYSLOG(LOG_INFO, "Sync date and time: %s", GetUtcDateAndTime().c_str());
     return (GSM_OK);
 }
 
@@ -176,8 +176,8 @@ int post_data_via_gsm_http(const char * server, int port, const char * url, cons
         }
     }
 
-    SYSLOG(LOG_INFO, "Response: %s", body.c_str());
-    SYSLOG(LOG_INFO, "Body length is: %d", body.length());
+    //SYSLOG(LOG_INFO, "Response: %s", body.c_str());
+    //SYSLOG(LOG_INFO, "Body length is: %d", body.length());
 
     http.stop();
     modem.gprsDisconnect();

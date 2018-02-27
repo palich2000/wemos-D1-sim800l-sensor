@@ -192,7 +192,6 @@ void RtcSecond() {
     if ((3 == RtcTime.minute) && !latest_uptime_flag) {
         latest_uptime_flag = true;
     }
-
 }
 
 void RtcInit() {
